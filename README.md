@@ -31,5 +31,5 @@ A simple and modern image converter web app built with Next.js that supports con
 1. Clone the repo:
 
 ```bash
-git clone https://github.com/yourusername/nextjs-image-converter.git
-cd nextjs-image-converter
+git clone https://github.com/gilangaryo/converter-files.git
+cd converter-files
