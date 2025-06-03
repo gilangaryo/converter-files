@@ -1,103 +1,401 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import React, { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import Image from 'next/image';
+
+const HomePage = () => {
+  const [files, setFiles] = useState([]);
+  const [converting, setConverting] = useState(false);
+  const [convertedFiles, setConvertedFiles] = useState([]);
+  const [format, setFormat] = useState('jpg');
+  const [quality, setQuality] = useState(90);
+
+  const onDrop = useCallback((acceptedFiles) => {
+    const filesWithPreview = acceptedFiles.map(file => {
+      const fileWithPreview = file;
+      if (file.type.startsWith('image/')) {
+        fileWithPreview.preview = URL.createObjectURL(file);
+      }
+      return fileWithPreview;
+    });
+    setFiles(prev => [...prev, ...filesWithPreview]);
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.heic', '.heif', '.jpg', '.jpeg', '.png', '.webp'],
+    },
+    multiple: true,
+  });
+
+  const removeFile = (index) => {
+    setFiles(prev => {
+      const newFiles = [...prev];
+      if (newFiles[index].preview) {
+        URL.revokeObjectURL(newFiles[index].preview);
+      }
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
+  };
+
+  const convertFile = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', format);
+    formData.append('quality', quality.toString());
+
+    try {
+      const response = await fetch('/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Conversion failed');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      return {
+        originalName: file.name,
+        convertedName: `${file.name.split('.')[0]}.${format}`,
+        blob: blob,
+        url: url,
+        format: format,
+        size: blob.size,
+        originalSize: file.size
+      };
+    } catch (error) {
+      console.error('Error converting file:', error);
+      return null;
+    }
+  };
+
+  const convertAllFiles = async () => {
+    if (files.length === 0) return;
+
+    setConverting(true);
+    const results = [];
+
+    for (const file of files) {
+      const result = await convertFile(file);
+      if (result) {
+        results.push(result);
+      }
+    }
+
+    setConvertedFiles(results);
+    setConverting(false);
+  };
+
+  const downloadFile = (convertedFile) => {
+    const a = document.createElement('a');
+    a.href = convertedFile.url;
+    a.download = convertedFile.convertedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const downloadAllConverted = () => {
+    convertedFiles.forEach(file => {
+      setTimeout(() => downloadFile(file), 100); // Small delay between downloads
+    });
+  };
+
+  const clearAllFiles = () => {
+    files.forEach(file => {
+      if (file.preview) {
+        URL.revokeObjectURL(file.preview);
+      }
+    });
+    convertedFiles.forEach(file => {
+      URL.revokeObjectURL(file.url);
+    });
+    setFiles([]);
+    setConvertedFiles([]);
+  };
+
+  const clearConverted = () => {
+    convertedFiles.forEach(file => {
+      URL.revokeObjectURL(file.url);
+    });
+    setConvertedFiles([]);
+  };
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4 text-black">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-black mb-2">
+            Image Converter Tool
+          </h1>
+          <p className="text-gray-600">
+            Convert HEIC, JPEG, PNG, and WebP images with ease
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Settings Panel */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-black">Conversion Settings</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Output Format
+              </label>
+              <select
+                value={format}
+                onChange={(e) => setFormat(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="jpg">JPG</option>
+                <option value="png">PNG</option>
+                <option value="webp">WebP</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Quality: {quality}%
+              </label>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={quality}
+                onChange={(e) => setQuality(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Upload Area */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              isDragActive
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center">
+              <svg
+                className="w-12 h-12 text-gray-400 mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              <p className="text-lg font-medium text-gray-600 mb-2">
+                {isDragActive
+                  ? 'Drop the files here...'
+                  : 'Drag & drop files here, or click to select'}
+              </p>
+              <p className="text-sm text-gray-500">
+                Supports HEIC, HEIF, JPEG, PNG, WebP files
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Files to Convert */}
+        {files.length > 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Files to Convert</h2>
+              <div className="space-x-2">
+                <button
+                  onClick={convertAllFiles}
+                  disabled={converting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {converting ? 'Converting...' : `Convert All (${files.length})`}
+                </button>
+                <button
+                  onClick={clearAllFiles}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              {files.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                >
+                  <div className="flex items-center space-x-4">
+                    {file.preview && (
+                      <div className="flex-shrink-0">
+                        <Image
+                          src={file.preview}
+                          alt={file.name}
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-800">{file.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-500">→</span>
+                    <span className="text-sm font-medium text-blue-600 uppercase">
+                      {format}
+                    </span>
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="p-1 text-red-600 hover:text-red-800"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Converted Files */}
+        {convertedFiles.length > 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-green-600">
+                Converted Files ({convertedFiles.length})
+              </h2>
+              <div className="space-x-2">
+                <button
+                  onClick={downloadAllConverted}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Download All
+                </button>
+                <button
+                  onClick={clearConverted}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  Clear Results
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              {convertedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-4 border border-green-200 bg-green-50 rounded-lg"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-green-100 rounded flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-800">{file.convertedName}</p>
+                      <p className="text-sm text-gray-500">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                        <span className="text-gray-400 mx-2">•</span>
+                        Original: {(file.originalSize / 1024 / 1024).toFixed(2)} MB
+                        <span className="text-gray-400 mx-2">•</span>
+                        <span className={`${file.size < file.originalSize ? 'text-green-600' : 'text-red-600'}`}>
+                          {file.size < file.originalSize ? '↓' : '↑'} 
+                          {Math.abs(((file.size - file.originalSize) / file.originalSize * 100)).toFixed(1)}%
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-green-600 uppercase">
+                      {file.format}
+                    </span>
+                    <button
+                      onClick={() => downloadFile(file)}
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Info Panel */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">Supported Formats</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="font-medium text-gray-800 mb-2">Input Formats:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• HEIC (High Efficiency Image Container)</li>
+                <li>• HEIF (High Efficiency Image Format)</li>
+                <li>• JPEG/JPG</li>
+                <li>• PNG</li>
+                <li>• WebP</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-800 mb-2">Output Formats:</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• JPG (Lossy compression, smaller files)</li>
+                <li>• PNG (Lossless, supports transparency)</li>
+                <li>• WebP (Modern format, great compression)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+          border: none;
+        }
+      `}</style>
     </div>
   );
-}
+};
+
+export default HomePage;
