@@ -19,13 +19,6 @@ A simple and modern image converter web app built with Next.js that supports con
 
 ---
 
-## Demo
-
-![Screenshot](./screenshot.png)  
-*(Add your app screenshot here)*
-
----
-
 ## Getting Started
 
 ### Prerequisites
