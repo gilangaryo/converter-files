@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Image from 'next/image';
 
@@ -10,14 +10,18 @@ const HomePage = () => {
   const [convertedFiles, setConvertedFiles] = useState([]);
   const [format, setFormat] = useState('jpg');
   const [quality, setQuality] = useState(90);
+  const [loadingItems, setLoadingItems] = useState([]);
+
+  useEffect(() => {
+    setLoadingItems(new Array(files.length).fill(false));
+  }, [files]);
 
   const onDrop = useCallback((acceptedFiles) => {
     const filesWithPreview = acceptedFiles.map(file => {
-      const fileWithPreview = file;
       if (file.type.startsWith('image/')) {
-        fileWithPreview.preview = URL.createObjectURL(file);
+        file.preview = URL.createObjectURL(file);
       }
-      return fileWithPreview;
+      return file;
     });
     setFiles(prev => [...prev, ...filesWithPreview]);
   }, []);
@@ -41,13 +45,19 @@ const HomePage = () => {
     });
   };
 
-  const convertFile = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('format', format);
-    formData.append('quality', quality.toString());
+  const convertFile = async (file, index) => {
+    setLoadingItems(prev => {
+      const newLoading = [...prev];
+      newLoading[index] = true;
+      return newLoading;
+    });
 
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('format', format);
+      formData.append('quality', quality.toString());
+
       const response = await fetch('/api/convert', {
         method: 'POST',
         body: formData,
@@ -59,35 +69,36 @@ const HomePage = () => {
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      
+
       return {
         originalName: file.name,
         convertedName: `${file.name.split('.')[0]}.${format}`,
-        blob: blob,
-        url: url,
-        format: format,
+        blob,
+        url,
+        format,
         size: blob.size,
-        originalSize: file.size
+        originalSize: file.size,
       };
     } catch (error) {
       console.error('Error converting file:', error);
       return null;
+    } finally {
+      setLoadingItems(prev => {
+        const newLoading = [...prev];
+        newLoading[index] = false;
+        return newLoading;
+      });
     }
   };
 
   const convertAllFiles = async () => {
     if (files.length === 0) return;
-
     setConverting(true);
     const results = [];
-
-    for (const file of files) {
-      const result = await convertFile(file);
-      if (result) {
-        results.push(result);
-      }
+    for (let i = 0; i < files.length; i++) {
+      const result = await convertFile(files[i], i);
+      if (result) results.push(result);
     }
-
     setConvertedFiles(results);
     setConverting(false);
   };
@@ -103,7 +114,7 @@ const HomePage = () => {
 
   const downloadAllConverted = () => {
     convertedFiles.forEach(file => {
-      setTimeout(() => downloadFile(file), 100); // Small delay between downloads
+      setTimeout(() => downloadFile(file), 100);
     });
   };
 
@@ -263,18 +274,24 @@ const HomePage = () => {
                     <span className="text-sm font-medium text-blue-600 uppercase">
                       {format}
                     </span>
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="p-1 text-red-600 hover:text-red-800"
-                    >
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
+                    {loadingItems[index] ? (
+                      <span className="text-sm text-blue-600 font-semibold animate-pulse">
+                        Converting...
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => removeFile(index)}
+                        className="p-1 text-red-600 hover:text-red-800"
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path
+                            fillRule="evenodd"
+                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -284,11 +301,9 @@ const HomePage = () => {
 
         {/* Converted Files */}
         {convertedFiles.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-green-600">
-                Converted Files ({convertedFiles.length})
-              </h2>
+              <h2 className="text-xl font-semibold">Converted Files</h2>
               <div className="space-x-2">
                 <button
                   onClick={downloadAllConverted}
@@ -298,9 +313,9 @@ const HomePage = () => {
                 </button>
                 <button
                   onClick={clearConverted}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                 >
-                  Clear Results
+                  Clear Converted
                 </button>
               </div>
             </div>
@@ -309,41 +324,29 @@ const HomePage = () => {
               {convertedFiles.map((file, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-4 border border-green-200 bg-green-50 rounded-lg"
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                 >
                   <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-green-100 rounded flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
+                    <Image
+                      src={file.url}
+                      alt={file.convertedName}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 object-cover rounded"
+                    />
                     <div>
                       <p className="font-medium text-gray-800">{file.convertedName}</p>
                       <p className="text-sm text-gray-500">
-                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                        <span className="text-gray-400 mx-2">•</span>
-                        Original: {(file.originalSize / 1024 / 1024).toFixed(2)} MB
-                        <span className="text-gray-400 mx-2">•</span>
-                        <span className={`${file.size < file.originalSize ? 'text-green-600' : 'text-red-600'}`}>
-                          {file.size < file.originalSize ? '↓' : '↑'} 
-                          {Math.abs(((file.size - file.originalSize) / file.originalSize * 100)).toFixed(1)}%
-                        </span>
+                        Size: {(file.size / 1024).toFixed(2)} KB (Original: {(file.originalSize / 1024).toFixed(2)} KB)
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-green-600 uppercase">
-                      {file.format}
-                    </span>
-                    <button
-                      onClick={() => downloadFile(file)}
-                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
-                    >
-                      Download
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => downloadFile(file)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Download
+                  </button>
                 </div>
               ))}
             </div>
