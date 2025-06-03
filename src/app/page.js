@@ -303,11 +303,14 @@ const HomePage = () => {
         {convertedFiles.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex justify-between items-center mb-4">
+              {/* <h2 className="text-xl font-semibold text-green-600">
+                Converted Files ({convertedFiles.length})
+              </h2> */}
               <h2 className="text-xl font-semibold">Converted Files</h2>
               <div className="space-x-2">
                 <button
                   onClick={downloadAllConverted}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
                   Download All
                 </button>
@@ -327,6 +330,13 @@ const HomePage = () => {
                   className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                 >
                   <div className="flex items-center space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-green-100 rounded flex items-center justify-center">
+                        <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
                     <Image
                       src={file.url}
                       alt={file.convertedName}
@@ -337,7 +347,14 @@ const HomePage = () => {
                     <div>
                       <p className="font-medium text-gray-800">{file.convertedName}</p>
                       <p className="text-sm text-gray-500">
-                        Size: {(file.size / 1024).toFixed(2)} KB (Original: {(file.originalSize / 1024).toFixed(2)} KB)
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                        <span className="text-gray-400 mx-2">•</span>
+                        Original: {(file.originalSize / 1024 / 1024).toFixed(2)} MB
+                        <span className="text-gray-400 mx-2">•</span>
+                        <span className={`${file.size < file.originalSize ? 'text-green-600' : 'text-red-600'}`}>
+                          {file.size < file.originalSize ? '↓' : '↑'} 
+                          {Math.abs(((file.size - file.originalSize) / file.originalSize * 100)).toFixed(1)}%
+                        </span>
                       </p>
                     </div>
                   </div>
